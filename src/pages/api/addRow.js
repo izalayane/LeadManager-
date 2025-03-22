@@ -6,8 +6,8 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method not allowed' });
     }
 
-    const { idClient, clientName, date, optionsRegistro, optionsTentativaContato, status, followUp, posVenda } = req.body;
-    if (!idClient || !clientName || !date || !optionsRegistro || !optionsTentativaContato || !status || !followUp || !posVenda) {
+    const { idClient, clientName, nProposta, date, optionsRegistro, optionsTentativaContato, status, followUp} = req.body;
+    if (!idClient || !clientName || !nProposta || !date || !optionsRegistro || !optionsTentativaContato || !status || !followUp) {
         return res.status(400).json({ message: 'Missing fields' });
     }
 
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
             valueInputOption: 'USER_ENTERED',
             insertDataOption: 'INSERT_ROWS',
             requestBody: {
-                values: [[idClient, clientName, date, optionsRegistro, optionsTentativaContato, status, followUp, posVenda]]
+                values: [[idClient, clientName, nProposta, date, optionsRegistro, optionsTentativaContato, status, followUp]]
             }
         });
 

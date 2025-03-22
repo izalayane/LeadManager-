@@ -13,8 +13,11 @@ export default function Home() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
     const [leads, setLeads] = useState([]);
+    const [expandedProposals, setExpandedProposals] = useState({});
+    const [allPosVenda, setAllPosVenda] = useState([]);
     const [form, setForm] = useState({
         idClient: '',
+        nProposta: '',
         clientName: '',
         date: '',
         optionsRegistro: '',
@@ -26,39 +29,64 @@ export default function Home() {
 
     // Buscar dados da planilha ao carregar a página
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await fetch('/api/getAllData');
-                const result = await response.json();
-    
-                if (result.data) {
-                    const formattedData = result.data.map(row => ({
-                        idClient: row[0] || "",
-                        clientName: row[1] || "",
-                        date: row[2] || "",
-                        optionsRegistro: row[3] || "",
-                        optionsTentativaContato: row[4] || "",
-                        status: row[5] || "",
-                        followUp: row[6] || "",
-                        posVenda: row[7] || ""
-                    }));
-    
-                    setLeads(formattedData);
-                    setAllData(formattedData); 
-                }
-            } catch (error) {
-                console.error("Erro ao buscar os dados:", error);
+        const fetchAll = async () => {
+          try {
+            // ➤ Busca Leads
+            const leadRes = await fetch('/api/getAllData');
+            if (!leadRes.ok) {
+              console.error(`GET /api/getAllData falhou com status: ${leadRes.status}`);
+              setAllData([]);
+              setLeads([]);
+            } else {
+              const leadJson = await leadRes.json();
+              const formattedLeads = (leadJson.data || []).map(row => ({
+                idClient: row[0] || "",
+                clientName: row[1] || "",
+                nProposta: row[2] || "",
+                date: row[3] || "",
+                optionsRegistro: row[4] || "",
+                optionsTentativaContato: row[5] || "",
+                status: row[6] || "",
+                followUp: row[7] || ""
+              }));
+              setAllData(formattedLeads);
+              setLeads(formattedLeads);
             }
+      
+            // ➤ Busca Pós‑venda
+            const posRes = await fetch('/api/getPosVenda');
+            if (!posRes.ok) {
+              console.error(`GET /api/getPosVenda falhou com status: ${posRes.status}`);
+              setAllPosVenda([]);
+            } else {
+              const posJson = await posRes.json();
+              const formattedPos = (posJson.data || []).map(row => ({
+                idClient: row[0] || "",
+                clientName: row[1] || "",
+                nProposta: row[2] || "",
+                date: row[3] || "",
+                posStatus: row[4] || ""
+              }));
+              setAllPosVenda(formattedPos);
+            }
+          } catch (error) {
+            console.error("Erro ao buscar dados:", error);
+            setAllData([]);
+            setAllPosVenda([]);
+          }
         };
-    
-        fetchData();
+      
+        fetchAll();
     }, []);
-    
-    
+      
+      
+      
+      
+      
 
     // Função para cadastrar novo lead
     const handleSubmit = async () => {
-        if (!form.idClient || !form.clientName || !form.date || !form.optionsRegistro || !form.optionsTentativaContato || !form.status || !form.followUp || !form.posVenda) {
+        if (!form.idClient  || !form.clientName || !form.nProposta || !form.date || !form.optionsRegistro || !form.optionsTentativaContato || !form.status || !form.followUp) {
             alert("Preencha todos os campos!");
             return;
         }
@@ -73,6 +101,21 @@ export default function Home() {
             if (response.ok) {
                 alert("Lead cadastrado com sucesso!");
                 setScreen(null);
+
+                // 🔄 Recarrega todos os leads para atualizar a visualização
+                const fresh = await fetch('/api/getAllData');
+                const json = await fresh.json();
+                setAllData(json.data.map(row => ({
+                    idClient: row[0]||"",
+                    clientName: row[1]||"",
+                    nProposta: row[2]||"",
+                    date: row[3]||"",
+                    optionsRegistro: row[4]||"",
+                    optionsTentativaContato: row[5]||"",
+                    status: row[6]||"",
+                    followUp: row[7]||""
+                })));
+
             } else {
                 alert("Erro ao cadastrar lead.");
             }
@@ -81,6 +124,58 @@ export default function Home() {
         }
     };
 
+    // Função para cadastrar Pós‑venda
+    const handleSubmitPosVenda = async () => {
+        // Validação básica
+        if (!form.idClient || !form.clientName || !form.nProposta || !form.date || !form.posVenda) {
+          alert('Preencha todos os campos de Pós‑venda!');
+          return;
+        }
+      
+        try {
+          // Envia para /api/addPosVenda
+          const res = await fetch('/api/addPosVenda', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idClient: form.idClient,
+              clientName: form.clientName,
+              nProposta: form.nProposta,
+              date: form.date,
+              posVenda: form.posVenda
+            })
+          });
+      
+          // Se a API retornar sucesso (200–299)
+          if (res.ok) {
+            alert('Pós‑venda cadastrado com sucesso!');
+            setScreen(null);
+      
+            // 🔄 Recarrega apenas a aba de Pós‑venda
+            const posRes = await fetch('/api/getPosVenda');
+            const posJson = await posRes.json();
+      
+            // Mapeia as linhas [idClient, clientName, nProposta, date, posStatus]
+            const formattedPos = (posJson.data || []).map(row => ({
+              idClient: row[0] || '',
+              clientName: row[1] || '',
+              nProposta: row[2] || '',
+              date: row[3] || '',
+              posStatus: row[4] || ''
+            }));
+            setAllPosVenda(formattedPos);
+      
+            // Limpa somente o campo de Pós‑venda no form
+            setForm(prev => ({ ...prev, posVenda: '' }));
+          } else {
+            alert('Erro ao cadastrar Pós‑venda.');
+          }
+        } catch (error) {
+          console.error('Erro ao cadastrar Pós‑venda:', error);
+          alert('Erro ao cadastrar Pós‑venda.');
+        }
+    };
+      
     // Função para atualizar os campos ao inserir o ID do cliente
     const handleIDChange = (e) => {
         const id = e.target.value;
@@ -116,12 +211,12 @@ export default function Home() {
                             ...form,
                             idClient: id,
                             clientName: latestLead.clientName,
+                            nProposta: latestLead.nProposta,
                             date: latestLead.date, // Exibe no formato original DD/MM/YYYY
                             optionsRegistro: latestLead.optionsRegistro,
                             optionsTentativaContato: latestLead.optionsTentativaContato,
                             status: latestLead.status,
                             followUp: latestLead.followUp,
-                            posVenda: latestLead.posVenda
                         });
                     } else {
                         setForm({ ...form, clientName: '' });
@@ -181,46 +276,49 @@ export default function Home() {
     };
     
     
-
-
     return (
         <main className="bg-slate-800 min-h-screen flex flex-col items-center justify-center p-6">
             <img src="/iconeEmpresa.png" alt="Logo" className="absolute top-8 left-6 w-35 h-auto" />
 
             {screen === null && (
-        <main className='bg-slate-800 min-h-screen flex flex-col items-center justify-center'>
+                <div className='bg-slate-800 min-h-screen flex flex-col items-center justify-center'>
 
-        {/* Título Centralizado */}
-        <h1 className="text-white text-4xl font-bold text-center mb-8">CONTROLE DE LEADS</h1>
+                {/* Título Centralizado */}
+                <h1 className="text-white text-4xl font-bold text-center mb-8">CONTROLE DE LEADS</h1>
 
-        {/* Botões da Tela inicial */}
-        <div className="flex flex-col gap-4 w-full max-w-md">
-            <button 
-                onClick={() => setScreen('cadastrar')} 
-                className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
-            >
-                CADASTRAR NOVO LEAD
-            </button>
+                {/* Botões da Tela inicial */}
+                <div className="flex flex-col gap-4 w-full max-w-md">
+                    <button 
+                        onClick={() => setScreen('cadastrar')} 
+                        className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
+                    >
+                        CADASTRAR NOVO
+                    </button>
 
-            <button 
-                onClick={() => setScreen('editar')} 
-                className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
-            >
-                EDITAR LEAD
-            </button>
+                    <button 
+                        onClick={() => setScreen('editar')} 
+                        className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
+                    >
+                        ATUALIZAR LEAD
+                    </button>
 
-            <button 
-                onClick={() => setScreen('visualizar')} 
-                className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
-            >
-                VISUALIZAR LEADS
-            </button>
-        </div>
+                    <button 
+                        onClick={() => setScreen('visualizar')} 
+                        className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
+                    >
+                        VISUALIZAR LEADS
+                    </button>
 
-        </main>
+                    <button 
+                            onClick={() => setScreen('posVenda')} 
+                            className="bg-slate-400 rounded-md h-18 w-full font-bold text-lg text-center"
+                        >
+                            PÓS VENDA
+                        </button>
+                </div>
+
+                </div>
             )}
-
-
 
             {screen === 'cadastrar' && (
                 <div className='bg-white rounded p-10 max-w-2xl w-full flex flex-col gap-3 mt-6'>
@@ -254,6 +352,18 @@ export default function Home() {
                             value={form.clientName}
                             onChange={e => setForm({...form, clientName: e.target.value})}
                         />
+                    </div>
+
+                    {/* Nº do Processo */}
+                    <div className='flex flex-col gap-1'>
+                    <label htmlFor="nProposta" className='text-[12px] font-bold uppercase'>N° do Processo</label>
+                    <input
+                        type="number"
+                        id="nProposta"
+                        value={form.nProposta}
+                        onChange={e => setForm({...form, nProposta: e.target.value})}
+                        className='bg-gray-300 rounded h-10 px-2 text-gray-600'
+                    />
                     </div>
 
                     {/* Data de Recebimento */}
@@ -342,23 +452,6 @@ export default function Home() {
                         </select>
                     </div>
 
-                    {/* Pós-Venda */}
-                    <div className='flex flex-col gap-1'>
-                        <label htmlFor="posVenda" className='text-[12px] font-bold uppercase'>Acompanhamento Pós-venda</label>
-                        <select 
-                            id="posVenda" 
-                            name="posVenda" 
-                            value={form.posVenda}
-                            onChange={e => setForm({...form, posVenda: e.target.value})}
-                            className='bg-gray-300 rounded h-10 px-2 text-gray-600'
-                        >
-                            <option value="" disabled>Selecione uma opção...</option>
-                            <option value="Não iniciado">Não iniciado</option>
-                            <option value="Em andamento">Em andamento</option>
-                            <option value="Concluído">Concluído</option>
-                        </select>
-                    </div>
-
                     {/* Botão de Salvar */}
                     <button 
                         onClick={handleSubmit} 
@@ -376,7 +469,6 @@ export default function Home() {
                     </button>
                 </div>
             )}
-
 
             {screen === 'editar' && (
                 <div className='bg-white rounded p-10 max-w-2xl w-full flex flex-col gap-3 mt-6'>
@@ -409,6 +501,19 @@ export default function Home() {
                         value={form.clientName} 
                         disabled 
                     />
+
+                    <label htmlFor="nProposta" className='text-[12px] font-bold uppercase'>N° da Proposta</label>
+                    <input
+                    type="number"
+                    id="nProposta"
+                    name="nProposta"
+                    placeholder="Digite o nº da proposta..."
+                    className='bg-gray-300 rounded h-10 px-2 text-gray-600'
+                    value={form.nProposta || ''}
+                    onChange={e => setForm({...form, nProposta: e.target.value})}
+                    disabled={!form.clientName}
+                    />
+
 
                     {/* Data de Recebimento */}
                     <label htmlFor="date" className='text-[12px] font-bold uppercase'>Data de Atualização</label>
@@ -461,15 +566,6 @@ export default function Home() {
                         <option value="Realizado">Realizado</option>
                     </select>
 
-                    {/* Pós-Venda */}
-                    <label htmlFor="posVenda" className="text-[12px] font-bold uppercase">Acompanhamento Pós-venda</label>
-                    <select className="bg-gray-300 rounded h-10 px-2 text-gray-600" value={form.posVenda} onChange={e => setForm({...form, posVenda: e.target.value})} disabled={!form.clientName}>
-                        <option value="">Acompanhamento Pós-venda...</option>
-                        <option value="Não iniciado">Não iniciado</option>
-                        <option value="Em andamento">Em andamento</option>
-                        <option value="Concluído">Concluído</option>
-                    </select>
-
                     {/* Botão de Salvar */}
                     <button onClick={handleSubmit} className="bg-slate-500 text-white px-4 py-2 rounded mt-4" disabled={!form.clientName}>Salvar</button>
 
@@ -478,121 +574,233 @@ export default function Home() {
                 </div>
             )}
 
-
-
             {screen === 'visualizar' && (
-                <div className='bg-white rounded p-10 max-w-5xl w-full flex flex-col gap-4 mt-6'>
+            <div className="bg-white rounded p-10 max-w-screen-lg w-full mx-auto flex flex-col gap-4 mt-6 relative">
 
-                    {/* 🔹 Cabeçalho com título e botão no mesmo nível */}
-                    <div className="relative w-full">
-                        {/* Título da tela */}
-                        <h2 className="text-xl font-bold text-gray-900 text-center mt-10">Visualizar Leads</h2>
+                {/* Cabeçalho */}
+                <div className="relative w-full">
+                <h2 className="text-xl font-bold text-gray-900 text-center mt-4">Visualizar Leads</h2>
+                <a 
+                    href="https://www.exemplo.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute right-0 top-0 bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
+                >
+                    Análise Visual
+                </a>
+                </div>
 
-                        {/* Botão "Análise Visual" alinhado à direita */}
-                        <a 
-                            href="https://www.exemplo.com"  // 🔹 Substitua pelo link correto
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="absolute right-[-20px] top-[-20px] right-0 bg-blue-600 text-white px-4 py-2 rounded shadow-md hover:bg-blue-700 transition"
+                {/* Campo de pesquisa + dropdown */}
+                <div className="flex flex-col items-center relative">
+                <input
+                    type="text"
+                    placeholder="Digite o ID ou Nome..."
+                    className="bg-gray-300 rounded h-10 px-4 text-gray-600 w-full max-w-md text-center"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                    onFocus={() => setShowDropdown(true)}
+                />
+                <button onClick={() => setScreen(null)} className="bg-slate-500 text-white px-4 py-2 rounded mt-4">Voltar</button>
+
+                {showDropdown && searchQuery.trim() && (
+                    <div className="absolute top-12 w-full max-w-md bg-white border rounded shadow max-h-60 overflow-auto">
+                    {[...new Map(
+                        allData
+                        .filter(l =>
+                            l.idClient.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            l.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map(l => [l.idClient, l])
+                    ).values()].map((lead, i) => (
+                        <div
+                        key={i}
+                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => { setSearchQuery(lead.idClient); setShowDropdown(false); }}
                         >
-                            Análise Visual
-                        </a>
+                        {lead.idClient} — {lead.clientName}
+                        </div>
+                    ))}
                     </div>
-                    {/* Campo de pesquisa por ID ou Nome */}
-                    <div className="flex flex-col items-center relative">
-                        <input 
-                            type="text" 
-                            placeholder="Digite o ID ou Nome..." 
-                            className="bg-gray-300 rounded h-10 px-4 text-gray-600 text-center w-2/3"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            onBlur={() => setTimeout(() => setShowDropdown(false), 200)} // Esconde a lista ao sair do campo
-                            onFocus={() => setShowDropdown(true)} // Mostra a lista ao focar no campo
-                        />
+                )}
+                </div>
 
-                        {/* Botão de Voltar */}
-                        <button onClick={() => setScreen(null)} className="bg-slate-500 text-white px-4 py-2 rounded mt-6">
-                            Voltar
-                        </button>
+                {/* Resultados agrupados */}
+                <div className="space-y-6 mt-6">
+                {searchQuery.trim() && (() => {
+                    const leadRows = allData.filter(l => l.idClient === searchQuery);
+                    if (!leadRows.length) return <p className="text-center">Nenhum lead encontrado.</p>;
 
-                        {/* Lista suspensa sem repetições */}
-                        {showDropdown && searchQuery.trim() !== "" && (
-                            <div className="absolute top-12 w-2/3 bg-white border border-gray-300 rounded shadow-md max-h-60 overflow-y-auto">
-                                {[...new Map(allData
-                                    .filter(lead =>
-                                        lead.idClient.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                        lead.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-                                    )
-                                    .map(lead => [lead.idClient, lead]) // Remove duplicatas mantendo apenas um representante
-                                ).values()].map((lead, index) => (
-                                    <div 
-                                        key={index} 
-                                        className="p-2 hover:bg-gray-100 cursor-pointer"
-                                        onClick={() => {
-                                            setSearchQuery(lead.idClient);
-                                            setShowDropdown(false); // Esconde a lista ao selecionar um item
-                                        }}
+                    const clientName = leadRows[0].clientName;
+                    return (
+                    <div>
+                        <h3 className="text-lg font-bold mb-4">{searchQuery} — {clientName}</h3>
+
+                        {Object.entries(
+                        leadRows.reduce((acc, row) => { (acc[row.nProposta] ||= []).push(row); return acc }, {})
+                        )
+                        .sort(([, a], [, b]) => {
+                        const lastA = a[a.length-1].date.split('/').reverse().join('-');
+                        const lastB = b[b.length-1].date.split('/').reverse().join('-');
+                        return new Date(lastB) - new Date(lastA);
+                        })
+                        .map(([nProposta, entries]) => {
+                        const key = `${searchQuery}-${nProposta}`;
+                        const latest = entries[entries.length-1];
+                        const isOpen = expandedProposals[key] || false;
+
+                        return (
+                            <div key={key} className="border-b pb-4 relative">
+                            <button
+                                className="w-full flex justify-between items-center p-2 hover:bg-gray-100"
+                                onClick={() => setExpandedProposals(prev => ({ ...prev, [key]: !prev[key] }))}
+                            >
+                                <span className="font-semibold">{latest.date} — Proposta: {nProposta}</span>
+                                <div className="flex items-center gap-4">
+                                {entries.some(item => item.status === 'Convertido') && (
+                                    <span
+                                    className="text-blue-500 cursor-pointer"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        setExpandedProposals(prev => ({ ...prev, [`pos-${key}`]: !prev[`pos-${key}`] }));
+                                    }}
                                     >
-                                        {lead.idClient} - {lead.clientName}
+                                    Pós‑venda
+                                    </span>
+                                )}
+                                <span>{isOpen ? '▲' : '▼'}</span>
+                                </div>
+                            </button>
+
+                            {/* Popover Pós‑venda */}
+                            {expandedProposals[`pos-${key}`] && (
+                                <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                                    <div className="bg-blue-100 w-11/12 sm:w-3/4 md:w-1/2 lg:w-2/5 p-6 rounded-lg shadow-lg relative">
+                                    {/* Cabeçalho do modal */}
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-lg font-bold">{latest.idClient} — Proposta {nProposta}</h4>
+                                        <button
+                                        onClick={() => setExpandedProposals(prev => ({ ...prev, [`pos-${key}`]: false }))}
+                                        className="text-gray-600 hover:text-gray-800"
+                                        >
+                                        ✕
+                                        </button>
+                                    </div>
+
+                                    {/* Conteúdo Pós‑venda */}
+                                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                                        {allPosVenda
+                                        .filter(pv => pv.idClient === searchQuery && pv.nProposta === nProposta)
+                                        .sort((a,b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-')))
+                                        .map((pv, i) => (
+                                            <p key={i} className="text-sm">
+                                            {pv.date} — Status Pós‑venda: {pv.posStatus}
+                                            </p>
+                                        ))
+                                        }
+                                    </div>
+                                    </div>
+                                </div>
+                            )}
+
+
+                            {/* Histórico principal */}
+                            {isOpen && (
+                                <div className="ml-4 mt-2 space-y-2">
+                                {entries.map((item,i) => (
+                                    <div key={i} className="bg-gray-100 p-2 rounded flex justify-between">
+                                    <div>
+                                        <p className="text-sm">{item.date} | Origem: {item.optionsRegistro}</p>
+                                        <p className="text-sm">Tentativas: {item.optionsTentativaContato} • Status: {item.status} • Follow‑up: {item.followUp}</p>
+                                    </div>
+                                    <button onClick={() => handleDelete(item.idClient)}>
+                                        <FaTrash className="text-red-500 hover:text-red-700"/>
+                                    </button>
                                     </div>
                                 ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Exibição dos Leads agrupados por ID */}
-                    <div className="space-y-6 mt-6">
-                        {searchQuery.trim() !== "" && allData.length > 0 ? (
-                            Object.entries(
-                                allData
-                                    .filter(lead =>
-                                        lead.idClient.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                        lead.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-                                    )
-                                    .reduce((acc, lead) => {
-                                        if (!acc[lead.idClient]) acc[lead.idClient] = [];
-                                        acc[lead.idClient].push(lead);
-                                        return acc;
-                                    }, {})
-                            ).map(([id, leadData]) => (
-                                <div key={id} className="border-b pb-4">
-                                    {/* ID + Nome em Destaque */}
-                                    <h3 className="text-lg font-bold text-gray-800">{id} - {leadData[0].clientName}</h3>
-
-                                    {/* Histórico de Informações (Ordenado por Data Mais Recente) */}
-                                    {leadData.sort((a, b) => {
-                                        const [dayA, monthA, yearA] = a.date.split('/');
-                                        const [dayB, monthB, yearB] = b.date.split('/');
-                                        return new Date(`${yearB}-${monthB}-${dayB}`) - new Date(`${yearA}-${monthA}-${dayA}`);
-                                    }).map((item, i) => (
-                                        <div key={i} className="ml-4 bg-gray-100 p-2 rounded mt-2 flex justify-between items-center">
-                                            <div>
-                                                <p className="text-gray-700 text-sm font-semibold">{item.date}</p>
-                                                <p className="text-gray-600 text-sm">Origem: {item.optionsRegistro}</p>
-                                                <p className="text-gray-600 text-sm">Tentativas de Contato: {item.optionsTentativaContato}</p>
-                                                <p className="text-gray-600 text-sm">Status: {item.status}</p>
-                                                <p className="text-gray-600 text-sm">Follow-up: {item.followUp}</p>
-                                                <p className="text-gray-600 text-sm">Pós-venda: {item.posVenda}</p>
-                                            </div>
-                                            {/* Ícone de Lixeira para Excluir */}
-                                            <button onClick={() => handleDelete(item.idClient)} className="text-red-500 hover:text-red-700">
-                                                <FaTrash />
-                                            </button>
-
-
-                                        </div>
-                                    ))}
                                 </div>
-                            ))
-                        ) : (
-                            <p className="text-gray-400 text-center">Nenhum lead encontrado.</p>
-                        )}
+                            )}
+                            </div>
+                        );
+                        })}
                     </div>
-
+                    );
+                })()}
                 </div>
+            </div>
             )}
 
 
+
+            {screen === 'posVenda' && (
+                <div className='bg-white rounded p-10 max-w-2xl w-full flex flex-col gap-3 mt-6'>
+                    <h2 className="text-xl font-bold mb-4 text-gray-900 text-center">Controle de Pós-Venda</h2>
+
+                    {/* ID do Cliente */}
+                    <label htmlFor="idClient" className='text-[12px] font-bold uppercase'>ID do Cliente</label>
+                    <input 
+                        type="text" 
+                        placeholder="Digite o ID do Cliente..." 
+                        className='bg-gray-300 rounded h-10 px-2 text-gray-600 w-full' 
+                        value={inputId} 
+                        onChange={handleIDChange} 
+                    />
+                    {isSearching && <p className="text-blue-500 text-sm mt-2">Buscando...</p>}
+
+                     {/* Número de Registros Encontrados */}
+                    {matchingRows > 0 && (
+                        <p className="text-gray-600 text-sm mt-2">
+                            Encontrado {matchingRows} registros para este ID.
+                        </p>
+                    )}
+
+                    {/* Nome do Cliente (Preenchido Automaticamente) */}
+                    <label htmlFor="clientName" className='text-[12px] font-bold uppercase'>Nome do Cliente</label>
+                    <input 
+                        type="text" 
+                        placeholder="Nome do Cliente" 
+                        className='bg-gray-300 rounded h-10 px-2 text-gray-600'  
+                        value={form.clientName} 
+                        disabled 
+                    />
+
+                    <label htmlFor="nProposta" className='text-[12px] font-bold uppercase'>N° da Proposta</label>
+                    <input
+                    type="number"
+                    id="nProposta"
+                    name="nProposta"
+                    placeholder="Digite o nº da proposta..."
+                    className='bg-gray-300 rounded h-10 px-2 text-gray-600'
+                    value={form.nProposta || ''}
+                    onChange={e => setForm({...form, nProposta: e.target.value})}
+                    disabled={!form.clientName}
+                    />
+
+
+                    {/* Data de Recebimento */}
+                    <label htmlFor="date" className='text-[12px] font-bold uppercase'>Data de Atualização</label>
+                    <input 
+                        type="text" 
+                        placeholder="Data de atualização..." 
+                        className='bg-gray-300 rounded h-10 px-2 text-gray-600' 
+                        value={form.date} 
+                        onChange={e => setForm({...form, date: e.target.value})} 
+                        disabled={!form.clientName} 
+                    />
+
+                {/* Pós-Venda */}
+                <label htmlFor="posVenda" className="text-[12px] font-bold uppercase">Acompanhamento Pós-venda</label>
+                    <select className="bg-gray-300 rounded h-10 px-2 text-gray-600" value={form.posVenda} onChange={e => setForm({...form, posVenda: e.target.value})} disabled={!form.clientName}>
+                        <option value="">Acompanhamento Pós-venda...</option>
+                        <option value="Não iniciado">Não iniciado</option>
+                        <option value="Em andamento">Em andamento</option>
+                        <option value="Concluído">Concluído</option>
+                    </select>
+                {/* Botão de Salvar */}    
+                <button onClick={handleSubmitPosVenda} className="bg-slate-500 text-white px-4 py-2 rounded mt-4">Salvar</button>
+                <button onClick={()=>setScreen(null)}>Voltar</button>
+            </div>
+            )}
 
 
         </main>
