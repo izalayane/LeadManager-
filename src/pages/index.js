@@ -581,7 +581,7 @@ export default function Home() {
                 <div className="relative w-full">
                 <h2 className="text-xl font-bold text-gray-900 text-center mt-4">Visualizar Leads</h2>
                 <a 
-                    href="https://www.exemplo.com"
+                    href="https://app.powerbi.com/view?r=eyJrIjoiYTgwN2FmYzEtYWJkNS00NTc1LWFkMzUtYzBlMmI5N2VkMDNiIiwidCI6ImYwMTQwNzU1LWZjNDktNGM1Mi1hZGE1LTRiODlhOWM5ZjU3NCJ9&pageName=e2dd7f9e50895447db66"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="absolute right-0 top-0 bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
